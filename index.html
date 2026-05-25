@@ -15,12 +15,14 @@
     body {
       margin: 0;
       min-height: 100vh;
-      display: grid;
-      place-items: center;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
       font-family: "Trebuchet MS", "Segoe UI", sans-serif;
       color: var(--ink);
       background: radial-gradient(circle at 20% 20%, #ffffff99, transparent 40%), linear-gradient(140deg, var(--bg-1), var(--bg-2));
       overflow: hidden;
+      padding-top: max(10px, env(safe-area-inset-top));
     }
     .shell {
       width: min(94vw, 520px);
@@ -74,12 +76,13 @@
     const scoreNode = document.getElementById("score");
     const stateNode = document.getElementById("state");
 
-    const world = { gravity: 0.34, flap: -7.6, speed: 2.2, spawnEvery: 1300 };
+    const world = { gravity: 0.34, flap: -7.6, speed: 2.2, speedRampPerSec: 0.045, spawnEvery: 1300 };
     const bird = { x: 120, y: 250, r: 20, vy: 0, asleep: false };
 
     let obstacles = [];
     let score = 0;
     let lastSpawn = 0;
+    let runStartTime = 0;
     let wakeTapsNeeded = 0;
     let wakeTapProgress = 0;
     let sleepSounds = [];
@@ -105,6 +108,19 @@
       briefcase: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='10' y='28' width='76' height='48' rx='8' fill='#b197fc' stroke='#222' stroke-width='4'/><path d='M36 28v-8a4 4 0 014-4h16a4 4 0 014 4v8' fill='none' stroke='#222' stroke-width='4'/><rect x='42' y='46' width='12' height='8' rx='2' fill='#222'/></svg>"),
       calendar: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='12' y='16' width='72' height='64' rx='8' fill='#69db7c' stroke='#222' stroke-width='4'/><rect x='12' y='16' width='72' height='16' rx='8' fill='#40c057'/><path d='M28 10v14M68 10v14M22 44h10M43 44h10M64 44h10M22 60h10M43 60h10M64 60h10' stroke='#222' stroke-width='4' stroke-linecap='round'/></svg>")
     };
+    let audioUnlocked = false;
+
+    async function unlockAudio() {
+      if (audioUnlocked) return;
+      if (audioCtx.state === "suspended") {
+        try {
+          await audioCtx.resume();
+        } catch {
+          return;
+        }
+      }
+      audioUnlocked = audioCtx.state === "running";
+    }
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function blip(freq, duration, type, volume) {
@@ -146,7 +162,8 @@
       bird.asleep = false;
       obstacles = [];
       score = 0;
-      lastSpawn = performance.now();
+      runStartTime = performance.now();
+      lastSpawn = runStartTime;
       wakeTapProgress = 0;
       wakeTapsNeeded = 0;
       sleepSounds = [];
@@ -288,6 +305,9 @@
     }
 
     function update(now) {
+      const elapsedSec = (now - runStartTime) / 1000;
+      const currentSpeed = world.speed + elapsedSec * world.speedRampPerSec;
+
       if (!bird.asleep) {
         bird.vy += world.gravity;
         bird.y += bird.vy;
@@ -298,7 +318,7 @@
       }
 
       for (const ob of obstacles) {
-        if (!bird.asleep) ob.x -= world.speed;
+        if (!bird.asleep) ob.x -= currentSpeed;
       }
 
       obstacles = obstacles.filter(ob => ob.x + ob.w > -10);
@@ -366,12 +386,14 @@
     window.addEventListener("keydown", (event) => {
       if (event.key !== " " && event.code !== "Space") return;
       event.preventDefault();
+      unlockAudio();
       if (bird.asleep) return;
       flap();
     });
 
     canvas.addEventListener("touchstart", (event) => {
       event.preventDefault();
+      unlockAudio();
       if (bird.asleep) {
         const point = getTouchPoint(event);
         if (!point) return;
