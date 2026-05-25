@@ -6,10 +6,10 @@
   <title>Flappymon</title>
   <style>
     :root {
-      --bg-1: #fff3d9;
-      --bg-2: #ffd9b3;
-      --ink: #1f1a17;
-      --card: #fff7ea;
+      --bg-1: #e2f6ff;
+      --bg-2: #caecff;
+      --ink: #244b5a;
+      --card: #fffaf3;
     }
     * { box-sizing: border-box; }
     body {
@@ -27,7 +27,7 @@
     .shell {
       width: min(94vw, 520px);
       background: var(--card);
-      border: 4px solid var(--ink);
+      border: 4px solid #3d6675;
       border-radius: 18px;
       box-shadow: 0 14px 0 #00000020;
       padding: 14px;
@@ -54,7 +54,7 @@
       height: auto;
       display: block;
       border-radius: 12px;
-      border: 3px solid var(--ink);
+      border: 3px solid #3d6675;
       background: linear-gradient(#fff8ec, #ffe8ca 65%, #f9d5a5);
       touch-action: none;
     }
@@ -97,6 +97,20 @@
     let wakeTapProgress = 0;
     let sleepSounds = [];
     let highScore = Number(localStorage.getItem(highScoreKey) || 0);
+    let frameTick = 0;
+    let hasStarted = false;
+    const farHeights = [108, 146, 124, 170, 132, 154, 118, 162, 138, 150, 126, 166];
+    const nearHeights = [184, 206, 192, 218, 198, 210, 188, 224, 196, 214];
+    const farTreeHeights = [18, 26, 20, 28, 22, 25, 19, 27, 21, 24];
+    const nearTreeHeights = [30, 38, 34, 42, 33, 40, 36, 44, 32, 39];
+    const riverDashPattern = Array.from({ length: 42 }, (_, idx) => ({
+      x: (idx * 37) % 480,
+      y: 4 + (idx * 19) % 58,
+      w: 8 + (idx * 7) % 14,
+      h: 2 + (idx % 2),
+      speed: 6 + (idx % 5) * 2,
+      phase: (idx * 23) % 480
+    }));
 
     const obstacleTypes = [
       { icon: "mail" },
@@ -114,12 +128,12 @@
     }
 
     const obstacleIconMap = {
-      mail: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='8' y='18' width='80' height='60' rx='10' fill='#f06595' stroke='#222' stroke-width='4'/><path d='M12 24l36 28 36-28' fill='none' stroke='#222' stroke-width='4'/><path d='M12 70l23-21M84 70L61 49' fill='none' stroke='#222' stroke-width='4'/></svg>"),
-      alarm: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><circle cx='48' cy='52' r='30' fill='#74c0fc' stroke='#222' stroke-width='4'/><path d='M48 52l0-14M48 52l12 7' stroke='#222' stroke-width='5' stroke-linecap='round'/><rect x='18' y='10' width='18' height='10' rx='4' fill='#4dabf7' stroke='#222' stroke-width='3'/><rect x='60' y='10' width='18' height='10' rx='4' fill='#4dabf7' stroke='#222' stroke-width='3'/></svg>"),
-      bell: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><path d='M48 17c-12 0-21 10-21 22v14l-9 11v8h60v-8l-9-11V39c0-12-9-22-21-22z' fill='#ffd43b' stroke='#222' stroke-width='4'/><circle cx='48' cy='76' r='7' fill='#fab005' stroke='#222' stroke-width='3'/></svg>"),
-      briefcase: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='10' y='28' width='76' height='48' rx='8' fill='#b197fc' stroke='#222' stroke-width='4'/><path d='M36 28v-8a4 4 0 014-4h16a4 4 0 014 4v8' fill='none' stroke='#222' stroke-width='4'/><rect x='42' y='46' width='12' height='8' rx='2' fill='#222'/></svg>"),
-      calendar: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='12' y='16' width='72' height='64' rx='8' fill='#69db7c' stroke='#222' stroke-width='4'/><rect x='12' y='16' width='72' height='16' rx='8' fill='#40c057'/><path d='M28 10v14M68 10v14M22 44h10M43 44h10M64 44h10M22 60h10M43 60h10M64 60h10' stroke='#222' stroke-width='4' stroke-linecap='round'/></svg>"),
-      excel: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='16' y='12' width='64' height='72' rx='8' fill='#2f9e44' stroke='#222' stroke-width='4'/><rect x='24' y='20' width='48' height='56' rx='4' fill='#8ce99a' opacity='0.85'/><path d='M24 34h48M24 48h48M24 62h48M40 20v56M56 20v56' stroke='#1f7a35' stroke-width='3'/><path d='M11 31h29v34H11z' fill='#1f7a35' stroke='#222' stroke-width='4'/><path d='M19 40l13 16M32 40L19 56' stroke='#fff' stroke-width='4' stroke-linecap='round'/></svg>")
+      mail: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' shape-rendering='crispEdges'><rect x='14' y='18' width='68' height='52' fill='#1b1f34'/><rect x='18' y='22' width='60' height='44' fill='#ff7fa8'/><rect x='18' y='22' width='60' height='8' fill='#ff98ba'/><path d='M18 30l30 20 30-20v8l-30 20-30-20z' fill='#f45f92'/><rect x='42' y='44' width='12' height='8' fill='#ffe6ef'/><rect x='42' y='46' width='12' height='2' fill='#ffffff'/><rect x='22' y='62' width='52' height='4' fill='#d84f84'/></svg>"),
+      alarm: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' shape-rendering='crispEdges'><rect x='24' y='12' width='16' height='8' fill='#1b1f34'/><rect x='56' y='12' width='16' height='8' fill='#1b1f34'/><rect x='28' y='18' width='40' height='8' fill='#6ac2ff'/><rect x='20' y='22' width='56' height='56' fill='#1b1f34'/><rect x='24' y='26' width='48' height='48' fill='#5db1f0'/><rect x='34' y='36' width='28' height='28' fill='#9fddff'/><rect x='46' y='40' width='4' height='12' fill='#1b1f34'/><rect x='50' y='52' width='10' height='4' fill='#1b1f34'/><rect x='30' y='76' width='8' height='6' fill='#1b1f34'/><rect x='58' y='76' width='8' height='6' fill='#1b1f34'/></svg>"),
+      bell: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' shape-rendering='crispEdges'><rect x='38' y='14' width='20' height='8' fill='#1b1f34'/><rect x='24' y='22' width='48' height='44' fill='#1b1f34'/><rect x='28' y='26' width='40' height='36' fill='#ffd44d'/><rect x='32' y='30' width='32' height='8' fill='#ffe07a'/><rect x='24' y='66' width='48' height='8' fill='#f3be2a'/><rect x='42' y='74' width='12' height='8' fill='#1b1f34'/><rect x='44' y='76' width='8' height='6' fill='#ffcf3d'/></svg>"),
+      briefcase: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' shape-rendering='crispEdges'><rect x='34' y='18' width='28' height='10' fill='#1b1f34'/><rect x='38' y='20' width='20' height='6' fill='#9a85e0'/><rect x='14' y='28' width='68' height='44' fill='#1b1f34'/><rect x='18' y='32' width='60' height='36' fill='#8b74d6'/><rect x='18' y='32' width='60' height='8' fill='#a996e8'/><rect x='42' y='46' width='12' height='8' fill='#1b1f34'/><rect x='44' y='48' width='8' height='4' fill='#d4c8ff'/><rect x='22' y='64' width='52' height='4' fill='#6f5cbc'/></svg>"),
+      calendar: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' shape-rendering='crispEdges'><rect x='16' y='16' width='64' height='64' fill='#1b1f34'/><rect x='20' y='20' width='56' height='56' fill='#59c36a'/><rect x='20' y='20' width='56' height='12' fill='#3fae55'/><rect x='28' y='12' width='8' height='14' fill='#1b1f34'/><rect x='60' y='12' width='8' height='14' fill='#1b1f34'/><rect x='28' y='38' width='8' height='8' fill='#d7ffd9'/><rect x='44' y='38' width='8' height='8' fill='#d7ffd9'/><rect x='60' y='38' width='8' height='8' fill='#d7ffd9'/><rect x='28' y='52' width='8' height='8' fill='#d7ffd9'/><rect x='44' y='52' width='8' height='8' fill='#b6f2bc'/><rect x='60' y='52' width='8' height='8' fill='#d7ffd9'/></svg>"),
+      excel: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96' shape-rendering='crispEdges'><rect x='18' y='14' width='60' height='68' fill='#1b1f34'/><rect x='22' y='18' width='52' height='60' fill='#2ba85a'/><rect x='30' y='24' width='40' height='46' fill='#7adf9a'/><rect x='30' y='34' width='40' height='2' fill='#2a9150'/><rect x='30' y='46' width='40' height='2' fill='#2a9150'/><rect x='30' y='58' width='40' height='2' fill='#2a9150'/><rect x='42' y='24' width='2' height='46' fill='#2a9150'/><rect x='54' y='24' width='2' height='46' fill='#2a9150'/><rect x='10' y='32' width='26' height='32' fill='#1f7e45'/><rect x='14' y='36' width='18' height='24' fill='#175f34'/><rect x='18' y='40' width='10' height='4' fill='#ecfff2'/><rect x='18' y='52' width='10' height='4' fill='#ecfff2'/></svg>")
     };
     let audioUnlocked = false;
     let audioCtx = null;
@@ -224,6 +238,7 @@
     }
 
     function flap() {
+      if (!hasStarted) hasStarted = true;
       if (bird.asleep) return;
       playFlapSound();
       bird.vy = world.flap;
@@ -273,21 +288,31 @@
       ctx.save();
       ctx.translate(bird.x, bird.y);
       ctx.rotate(tilt);
-      ctx.fillStyle = "#ffe066";
+      ctx.fillStyle = "#ffe87d";
       ctx.beginPath();
       ctx.arc(0, 0, bird.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#f3b43b";
+      ctx.stroke();
+      ctx.fillStyle = "#fff5b8";
+      ctx.beginPath();
+      ctx.arc(-7, -8, 6, 0, Math.PI * 2);
       ctx.fill();
       ctx.fillStyle = "#000";
       ctx.beginPath();
       ctx.arc(6, -5, 3, 0, Math.PI * 2);
       ctx.fill();
-      ctx.fillStyle = "#ff922b";
+      ctx.fillStyle = "#ffb857";
       ctx.beginPath();
       ctx.moveTo(18, 2);
       ctx.lineTo(29, 8);
       ctx.lineTo(18, 14);
       ctx.closePath();
       ctx.fill();
+      ctx.strokeStyle = "#d9822b";
+      ctx.lineWidth = 2;
+      ctx.stroke();
       ctx.restore();
     }
 
@@ -325,6 +350,7 @@
     }
 
     function update(now) {
+      if (!hasStarted) return;
       const elapsedSec = (now - runStartTime) / 1000;
       const currentSpeed = world.speed + elapsedSec * world.speedRampPerSec;
 
@@ -367,27 +393,206 @@
       }
     }
 
-    function drawBackground() {
-      ctx.fillStyle = "#f2bf7f";
-      ctx.fillRect(0, canvas.height - 80, canvas.width, 80);
-      ctx.fillStyle = "#ffecb5";
-      for (let i = 0; i < 7; i++) {
+    function drawBackground(now) {
+      const t = (bird.asleep ? runStartTime : now) * 0.001;
+      const speedFactor = 1 + ((world.speed + ((now - runStartTime) / 1000) * world.speedRampPerSec) - world.speed) * 0.25;
+      const horizonY = canvas.height * 0.62;
+
+      const sky = ctx.createLinearGradient(0, 0, 0, canvas.height);
+      sky.addColorStop(0, "#c7ecff");
+      sky.addColorStop(0.52, "#9fdcff");
+      sky.addColorStop(1, "#86cbf7");
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < 5; i++) {
+        const cloudX = ((canvas.width + 180) - ((t * (12 + i * 2) * speedFactor + i * 120) % (canvas.width + 220))) - 110;
+        const cloudY = 80 + i * 54;
+        ctx.fillStyle = "#ffffff88";
         ctx.beginPath();
-        ctx.arc(i * 90 + 40, canvas.height - 65, 36, 0, Math.PI * 2);
+        ctx.arc(cloudX, cloudY, 26, 0, Math.PI * 2);
+        ctx.arc(cloudX + 30, cloudY - 8, 22, 0, Math.PI * 2);
+        ctx.arc(cloudX + 58, cloudY, 20, 0, Math.PI * 2);
         ctx.fill();
+      }
+
+      ctx.fillStyle = "#8bd2c2";
+      ctx.fillRect(0, horizonY, canvas.width, canvas.height - horizonY);
+
+      const farStep = 90;
+      const farWorldShift = Math.floor((t * 12.5 * speedFactor) / farStep);
+      const farOffset = (t * 12.5 * speedFactor) % farStep;
+      for (let x = -90; x < canvas.width + 120; x += 90) {
+        const worldIndex = Math.floor((x + 360) / farStep) + farWorldShift;
+        const bx = x - farOffset;
+        const buildingIndex = ((worldIndex % farHeights.length) + farHeights.length) % farHeights.length;
+        const h = farHeights[buildingIndex];
+        ctx.fillStyle = "#7f8fb3";
+        ctx.fillRect(bx, horizonY - h, 68, h);
+        ctx.fillStyle = "#91a2c8";
+        ctx.fillRect(bx + 2, horizonY - h + 2, 10, h - 6);
+        ctx.fillStyle = "#65779c";
+        ctx.fillRect(bx + 56, horizonY - h + 4, 8, h - 10);
+        ctx.fillStyle = "#fff3adbb";
+        for (let row = 0; row < 4; row++) {
+          ctx.fillRect(bx + 12, horizonY - h + 12 + row * 16, 8, 8);
+          ctx.fillRect(bx + 30, horizonY - h + 12 + row * 16, 8, 8);
+          ctx.fillRect(bx + 48, horizonY - h + 12 + row * 16, 8, 8);
+        }
+      }
+
+      const nearStep = 120;
+      const nearWorldShift = Math.floor((t * 27.5 * speedFactor) / nearStep);
+      const nearOffset = (t * 27.5 * speedFactor) % nearStep;
+      for (let x = -120; x < canvas.width + 150; x += 120) {
+        const worldIndex = Math.floor((x + 480) / nearStep) + nearWorldShift;
+        const bx = x - nearOffset;
+        const buildingIndex = ((worldIndex % nearHeights.length) + nearHeights.length) % nearHeights.length;
+        const h = nearHeights[buildingIndex];
+        ctx.fillStyle = "#6477a6";
+        ctx.fillRect(bx, horizonY - h + 44, 86, h);
+        ctx.fillStyle = "#7b90c0";
+        ctx.fillRect(bx + 3, horizonY - h + 47, 14, h - 8);
+        ctx.fillStyle = "#4f628e";
+        ctx.fillRect(bx + 69, horizonY - h + 50, 12, h - 12);
+        ctx.fillStyle = "#fff2b6dd";
+        for (let row = 0; row < 5; row++) {
+          ctx.fillRect(bx + 14, horizonY - h + 56 + row * 18, 9, 9);
+          ctx.fillRect(bx + 34, horizonY - h + 56 + row * 18, 9, 9);
+          ctx.fillRect(bx + 54, horizonY - h + 56 + row * 18, 9, 9);
+        }
+      }
+
+      const roadY = canvas.height - 92;
+      const bridgeY = roadY - 46;
+      const nearBuildingBaseY = horizonY + 44;
+      const riverY = nearBuildingBaseY + 8;
+      const riverH = 66;
+      const river = ctx.createLinearGradient(0, riverY, 0, riverY + riverH);
+      river.addColorStop(0, "#7fd0ff");
+      river.addColorStop(0.5, "#57b8ef");
+      river.addColorStop(1, "#419bd9");
+      ctx.fillStyle = river;
+      ctx.fillRect(0, riverY, canvas.width, riverH);
+      ctx.fillStyle = "#dffdffb8";
+      for (const dash of riverDashPattern) {
+        const dx = (dash.x + dash.phase + t * dash.speed) % canvas.width;
+        ctx.fillRect(dx, riverY + dash.y, dash.w, dash.h);
+      }
+      ctx.fillStyle = "#2f79ad66";
+      for (const dash of riverDashPattern) {
+        const dx = (dash.x + dash.phase + t * (dash.speed * 0.7)) % canvas.width;
+        ctx.fillRect(dx + 3, riverY + dash.y + 3, Math.max(6, dash.w - 4), 2);
+      }
+
+      const farTreeStep = 84;
+      const farTreeShift = Math.floor((t * 42 * speedFactor) / farTreeStep);
+      const farTreeOffset = (t * 42 * speedFactor) % farTreeStep;
+      for (let x = -84; x < canvas.width + 120; x += farTreeStep) {
+        const worldIndex = Math.floor((x + 360) / farTreeStep) + farTreeShift;
+        const treeIndex = ((worldIndex % farTreeHeights.length) + farTreeHeights.length) % farTreeHeights.length;
+        const crown = farTreeHeights[treeIndex];
+        const tx = x - farTreeOffset;
+        const baseY = roadY - 60;
+        ctx.fillStyle = "#7d5a3f";
+        ctx.fillRect(tx + 14, baseY - crown, 4, crown);
+        ctx.fillStyle = "#59b66b";
+        ctx.beginPath();
+        ctx.arc(tx + 16, baseY - crown - 9, crown * 0.52, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#8fd79b";
+        ctx.fillRect(tx + 10, baseY - crown - 16, 6, 3);
+        ctx.fillStyle = "#3f9d55";
+        ctx.fillRect(tx + 18, baseY - crown - 8, 5, 3);
+      }
+
+      const nearTreeStep = 72;
+      const nearTreeShift = Math.floor((t * 92 * speedFactor) / nearTreeStep);
+      const nearTreeOffset = (t * 92 * speedFactor) % nearTreeStep;
+      for (let x = -72; x < canvas.width + 110; x += nearTreeStep) {
+        const worldIndex = Math.floor((x + 420) / nearTreeStep) + nearTreeShift;
+        const treeIndex = ((worldIndex % nearTreeHeights.length) + nearTreeHeights.length) % nearTreeHeights.length;
+        const crown = nearTreeHeights[treeIndex];
+        const tx = x - nearTreeOffset;
+        const baseY = roadY - 4;
+        ctx.fillStyle = "#8f6644";
+        ctx.fillRect(tx + 14, baseY - crown, 6, crown);
+        ctx.fillStyle = "#68c97a";
+        ctx.beginPath();
+        ctx.arc(tx + 17, baseY - crown - 14, crown * 0.56, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(tx + 8, baseY - crown - 8, crown * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(tx + 26, baseY - crown - 8, crown * 0.34, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = "#95e2a1";
+        ctx.fillRect(tx + 9, baseY - crown - 20, 7, 3);
+        ctx.fillStyle = "#40a95d";
+        ctx.fillRect(tx + 21, baseY - crown - 12, 6, 3);
+      }
+
+      ctx.fillStyle = "#98a4bc";
+      ctx.fillRect(0, bridgeY, canvas.width, 16);
+      ctx.fillStyle = "#7f8aa5";
+      for (let p = 0; p < canvas.width; p += 60) {
+        ctx.fillRect(p, bridgeY + 16, 10, (roadY - (bridgeY + 16)) * 0.5);
+      }
+      const busOffset = (t * 150 * speedFactor) % 180;
+      for (let x = -180; x < canvas.width + 220; x += 180) {
+        const busX = x - busOffset;
+        ctx.fillStyle = "#2f9e44";
+        ctx.fillRect(busX, bridgeY - 18, 58, 16);
+        ctx.fillStyle = "#49b65e";
+        ctx.fillRect(busX + 2, bridgeY - 16, 54, 4);
+        ctx.fillStyle = "#237c36";
+        ctx.fillRect(busX + 2, bridgeY - 6, 54, 3);
+        ctx.fillStyle = "#b7efc5";
+        ctx.fillRect(busX + 6, bridgeY - 14, 10, 7);
+        ctx.fillRect(busX + 20, bridgeY - 14, 10, 7);
+        ctx.fillRect(busX + 34, bridgeY - 14, 10, 7);
+        ctx.fillStyle = "#e7fff0";
+        ctx.fillRect(busX + 48, bridgeY - 14, 6, 6);
+        ctx.fillStyle = "#1f2937";
+        ctx.beginPath();
+        ctx.arc(busX + 14, bridgeY - 1, 3, 0, Math.PI * 2);
+        ctx.arc(busX + 44, bridgeY - 1, 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      ctx.fillStyle = "#6c83b0";
+      ctx.fillRect(0, roadY, canvas.width, 92);
+      ctx.fillStyle = "#7f94bc";
+      ctx.fillRect(0, roadY + 4, canvas.width, 6);
+      ctx.fillStyle = "#5b729d";
+      ctx.fillRect(0, roadY + 80, canvas.width, 8);
+      const laneOffset = (t * 210 * speedFactor) % 56;
+      ctx.fillStyle = "#fff6be";
+      for (let x = -56; x < canvas.width + 70; x += 56) {
+        ctx.fillRect(x - laneOffset, roadY + 42, 32, 6);
+        ctx.fillStyle = "#ffe98a";
+        ctx.fillRect(x - laneOffset + 2, roadY + 43, 12, 2);
+        ctx.fillStyle = "#fff6be";
       }
     }
 
-    function draw() {
+    function draw(now) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      drawBackground();
+      drawBackground(now);
       for (const ob of obstacles) drawObstacle(ob);
+      if (!hasStarted && !bird.asleep) {
+        drawLogo();
+      }
       drawBird();
 
       for (const sound of sleepSounds) {
-        ctx.fillStyle = "#111";
+        ctx.fillStyle = "#fff8cc";
+        ctx.strokeStyle = "#2a1a0f";
+        ctx.lineWidth = 2;
         ctx.font = "700 20px Trebuchet MS";
         ctx.textAlign = "center";
+        ctx.strokeText(sound.text, sound.x, sound.y);
         ctx.fillText(sound.text, sound.x, sound.y);
       }
 
@@ -397,13 +602,51 @@
         ctx.font = "bold 22px Trebuchet MS";
         ctx.textAlign = "left";
         ctx.fillText(`Tap Mon to wake: ${wakeTapProgress}/${wakeTapsNeeded}`, 110, 110);
+      } else if (!hasStarted) {
+        ctx.font = "bold 42px Trebuchet MS";
+        ctx.textAlign = "center";
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = "#111";
+        ctx.strokeText("Tap to Flap", canvas.width / 2, canvas.height * 0.78);
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText("Tap to Flap", canvas.width / 2, canvas.height * 0.78);
+      }
+    }
+
+    function drawLogo() {
+      const text = "FlappyMon";
+      const colors = ["#ff6b6b", "#ffd43b", "#69db7c", "#4dabf7", "#9775fa", "#f06595", "#74c0fc", "#fab005", "#63e6be"];
+      const centerX = canvas.width / 2;
+      const centerY = 98;
+      const totalWidth = canvas.width - 46;
+      const charStep = totalWidth / (text.length - 1);
+      ctx.font = "bold 48px 'Trebuchet MS', 'Segoe UI', sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      for (let idx = 0; idx < text.length; idx++) {
+        const x = centerX - totalWidth / 2 + idx * charStep;
+        const normalized = (idx / (text.length - 1)) * 2 - 1;
+        const y = centerY + (normalized * normalized) * 34;
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(normalized * 0.18);
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = "#111";
+        ctx.strokeText(text[idx], 0, 0);
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#ffffff";
+        ctx.strokeText(text[idx], 0, 0);
+        ctx.fillStyle = colors[idx % colors.length];
+        ctx.fillText(text[idx], 0, 0);
+        ctx.restore();
       }
     }
 
     function loop(now) {
+      frameTick = now;
       update(now);
       sleepSounds = sleepSounds.map((sound) => ({ ...sound, y: sound.y - 0.4, life: sound.life - 1 })).filter((sound) => sound.life > 0);
-      draw();
+      draw(now);
       requestAnimationFrame(loop);
     }
 
@@ -432,4 +675,3 @@
   </script>
 </body>
 </html>
-
