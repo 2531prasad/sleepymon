@@ -44,6 +44,11 @@
       margin-bottom: 10px;
       font-weight: 700;
     }
+    .score-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
     canvas {
       width: 100%;
       height: auto;
@@ -63,7 +68,10 @@
   <main class="shell">
     <h1 class="title">Flappymon</h1>
     <div class="hud">
-      <span id="score">Score: 0</span>
+      <div class="score-wrap">
+        <span id="score">Score: 0</span>
+        <span id="high-score">High: 0</span>
+      </div>
       <span id="state">Awake</span>
     </div>
     <canvas id="game" width="480" height="720" aria-label="Flappymon game canvas"></canvas>
@@ -74,7 +82,9 @@
     const canvas = document.getElementById("game");
     const ctx = canvas.getContext("2d");
     const scoreNode = document.getElementById("score");
+    const highScoreNode = document.getElementById("high-score");
     const stateNode = document.getElementById("state");
+    const highScoreKey = "flappymon_high_score";
 
     const world = { gravity: 0.34, flap: -7.6, speed: 2.2, speedRampPerSec: 0.045, spawnEvery: 1300 };
     const bird = { x: 120, y: 250, r: 20, vy: 0, asleep: false };
@@ -86,13 +96,15 @@
     let wakeTapsNeeded = 0;
     let wakeTapProgress = 0;
     let sleepSounds = [];
+    let highScore = Number(localStorage.getItem(highScoreKey) || 0);
 
     const obstacleTypes = [
       { icon: "mail" },
       { icon: "alarm" },
       { icon: "bell" },
       { icon: "briefcase" },
-      { icon: "calendar" }
+      { icon: "calendar" },
+      { icon: "excel" }
     ];
 
     function svgToImage(svgMarkup) {
@@ -106,12 +118,19 @@
       alarm: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><circle cx='48' cy='52' r='30' fill='#74c0fc' stroke='#222' stroke-width='4'/><path d='M48 52l0-14M48 52l12 7' stroke='#222' stroke-width='5' stroke-linecap='round'/><rect x='18' y='10' width='18' height='10' rx='4' fill='#4dabf7' stroke='#222' stroke-width='3'/><rect x='60' y='10' width='18' height='10' rx='4' fill='#4dabf7' stroke='#222' stroke-width='3'/></svg>"),
       bell: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><path d='M48 17c-12 0-21 10-21 22v14l-9 11v8h60v-8l-9-11V39c0-12-9-22-21-22z' fill='#ffd43b' stroke='#222' stroke-width='4'/><circle cx='48' cy='76' r='7' fill='#fab005' stroke='#222' stroke-width='3'/></svg>"),
       briefcase: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='10' y='28' width='76' height='48' rx='8' fill='#b197fc' stroke='#222' stroke-width='4'/><path d='M36 28v-8a4 4 0 014-4h16a4 4 0 014 4v8' fill='none' stroke='#222' stroke-width='4'/><rect x='42' y='46' width='12' height='8' rx='2' fill='#222'/></svg>"),
-      calendar: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='12' y='16' width='72' height='64' rx='8' fill='#69db7c' stroke='#222' stroke-width='4'/><rect x='12' y='16' width='72' height='16' rx='8' fill='#40c057'/><path d='M28 10v14M68 10v14M22 44h10M43 44h10M64 44h10M22 60h10M43 60h10M64 60h10' stroke='#222' stroke-width='4' stroke-linecap='round'/></svg>")
+      calendar: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='12' y='16' width='72' height='64' rx='8' fill='#69db7c' stroke='#222' stroke-width='4'/><rect x='12' y='16' width='72' height='16' rx='8' fill='#40c057'/><path d='M28 10v14M68 10v14M22 44h10M43 44h10M64 44h10M22 60h10M43 60h10M64 60h10' stroke='#222' stroke-width='4' stroke-linecap='round'/></svg>"),
+      excel: svgToImage("<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect x='16' y='12' width='64' height='72' rx='8' fill='#2f9e44' stroke='#222' stroke-width='4'/><rect x='24' y='20' width='48' height='56' rx='4' fill='#8ce99a' opacity='0.85'/><path d='M24 34h48M24 48h48M24 62h48M40 20v56M56 20v56' stroke='#1f7a35' stroke-width='3'/><path d='M11 31h29v34H11z' fill='#1f7a35' stroke='#222' stroke-width='4'/><path d='M19 40l13 16M32 40L19 56' stroke='#fff' stroke-width='4' stroke-linecap='round'/></svg>")
     };
     let audioUnlocked = false;
+    let audioCtx = null;
 
     async function unlockAudio() {
       if (audioUnlocked) return;
+      if (!audioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        audioCtx = new Ctx();
+      }
       if (audioCtx.state === "suspended") {
         try {
           await audioCtx.resume();
@@ -122,8 +141,8 @@
       audioUnlocked = audioCtx.state === "running";
     }
 
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     function blip(freq, duration, type, volume) {
+      if (!audioCtx || audioCtx.state !== "running") return;
       const now = audioCtx.currentTime;
       const oscillator = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
@@ -188,6 +207,7 @@
 
     function updateHud() {
       scoreNode.textContent = `Score: ${score}`;
+      highScoreNode.textContent = `High: ${highScore}`;
       stateNode.textContent = bird.asleep ? "\u{1F634}" : "\u{1F60A}";
       stateNode.style.color = bird.asleep ? "#d6336c" : "#2f9e44";
     }
@@ -333,6 +353,10 @@
           if (!ob.passed && ob.x + ob.w < bird.x - bird.r) {
             ob.passed = true;
             score += 1;
+            if (score > highScore) {
+              highScore = score;
+              localStorage.setItem(highScoreKey, String(highScore));
+            }
             updateHud();
           }
         }
@@ -383,17 +407,17 @@
       requestAnimationFrame(loop);
     }
 
-    window.addEventListener("keydown", (event) => {
+    window.addEventListener("keydown", async (event) => {
       if (event.key !== " " && event.code !== "Space") return;
       event.preventDefault();
-      unlockAudio();
+      await unlockAudio();
       if (bird.asleep) return;
       flap();
     });
 
-    canvas.addEventListener("touchstart", (event) => {
+    canvas.addEventListener("touchstart", async (event) => {
       event.preventDefault();
-      unlockAudio();
+      await unlockAudio();
       if (bird.asleep) {
         const point = getTouchPoint(event);
         if (!point) return;
